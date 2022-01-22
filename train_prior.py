@@ -26,7 +26,6 @@ class args(Config):
 
     PREPROCESSED = None
     WAV = None
-    SR = 48000
     N_SIGNAL = 65536
 
     BATCH = 8
@@ -65,7 +64,7 @@ args.N_SIGNAL = max(args.N_SIGNAL, get_n_signal(args, model.synth))
 dataset = SimpleDataset(
     args.PREPROCESSED,
     args.WAV,
-    preprocess_function=simple_audio_preprocess(args.SR, args.N_SIGNAL),
+    preprocess_function=simple_audio_preprocess(model.sr, args.N_SIGNAL),
     split_set="full",
     transforms=lambda x: x.reshape(1, -1),
 )
@@ -85,16 +84,31 @@ validation_checkpoint = pl.callbacks.ModelCheckpoint(
 last_checkpoint = pl.callbacks.ModelCheckpoint(filename="last")
 
 CUDA = gpu.getAvailable(maxMemory=.05)
-assert len(CUDA)
-environ["CUDA_VISIBLE_DEVICES"] = str(CUDA[0])
+if len(CUDA):
+    environ["CUDA_VISIBLE_DEVICES"] = str(CUDA[0])
+    use_gpu = 1
+elif torch.cuda.is_available():
+    print("Cuda is available but no fully free GPU found.")
+    print("Training may be slower due to concurrent processes.")
+    use_gpu = 1
+else:
+    print("No GPU found.")
+    use_gpu = 0
+
+val_check = {}
+if len(train) >= 10000:
+    val_check["val_check_interval"] = 10000
+else:
+    nepoch = 10000 // len(train)
+    val_check["check_val_every_n_epoch"] = nepoch
 
 trainer = pl.Trainer(
     logger=pl.loggers.TensorBoardLogger(path.join("runs", args.NAME),
                                         name="prior"),
-    gpus=1,
-    check_val_every_n_epoch=10,
+    gpus=use_gpu,
     callbacks=[validation_checkpoint, last_checkpoint],
     resume_from_checkpoint=args.CKPT,
     max_epochs=100000,
+    **val_check,
 )
 trainer.fit(model, train, val)

@@ -22,7 +22,17 @@ python cli_helper.py
 
 However, if you want to customize even more your training, you can use the provided `train_{rave, prior}.py` and `export_{rave, prior}.py` scripts manually.
 
-## Realtime usage
+## Reconstructing audio
+
+Once trained, you can reconstruct an entire folder containing wav files using
+
+```bash
+python reconstruct.py --ckpt /path/to/checkpoint --wav-folder /path/to/wav/folder
+```
+
+You can also export RAVE to a `torchscript` file using `export_rave.py` and use the `encode` and `decode` methods on tensors.
+
+## MAX / MSP - PureData usage
 
 **[NOT AVAILABLE YET]**
 

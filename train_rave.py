@@ -22,6 +22,7 @@ if __name__ == "__main__":
         LATENT_SIZE = 128
         RATIOS = [4, 4, 4, 2]
         BIAS = True
+        NO_LATENCY = False
 
         LOUD_STRIDE = 1
 
@@ -65,6 +66,7 @@ if __name__ == "__main__":
         d_n_layers=args.D_N_LAYERS,
         warmup=args.WARMUP,
         mode=args.MODE,
+        no_latency=args.NO_LATENCY,
         sr=args.SR,
     )
 
@@ -106,18 +108,32 @@ if __name__ == "__main__":
                                         monitor="validation")
 
     CUDA = gpu.getAvailable(maxMemory=.05)
-    assert len(CUDA)
-    environ["CUDA_VISIBLE_DEVICES"] = str(CUDA[0])
+    if len(CUDA):
+        environ["CUDA_VISIBLE_DEVICES"] = str(CUDA[0])
+        use_gpu = 1
+    elif torch.cuda.is_available():
+        print("Cuda is available but no fully free GPU found.")
+        print("Training may be slower due to concurrent processes.")
+        use_gpu = 1
+    else:
+        print("No GPU found.")
+        use_gpu = 0
+
+    val_check = {}
+    if len(train) >= 10000:
+        val_check["val_check_interval"] = 10000
+    else:
+        nepoch = 10000 // len(train)
+        val_check["check_val_every_n_epoch"] = nepoch
 
     trainer = pl.Trainer(
         logger=pl.loggers.TensorBoardLogger(path.join("runs", args.NAME),
                                             name="rave"),
-        gpus=1,
-        # val_check_interval=1,
-        check_val_every_n_epoch=1,
+        gpus=use_gpu,
         callbacks=[validation_checkpoint,
                    last_checkpoint],  #, ema_checkpoint],
         resume_from_checkpoint=args.CKPT,
         max_epochs=100000,
+        **val_check,
     )
     trainer.fit(model, train, val)
